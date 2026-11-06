@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>View picture & share location</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;display:grid;place-items:center;padding:24px;
+       font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#f3f4f6;color:#18212f}
+  main{width:min(100%,460px);background:white;border-radius:22px;padding:22px;
+       box-shadow:0 12px 35px #17203318}
+  .art{width:100%;height:210px;border-radius:16px;overflow:hidden;background:#dbeafe}
+  h1{font-size:22px;margin:20px 0 8px}
+  p{line-height:1.5;color:#4b5563}
+  button{width:100%;border:0;border-radius:12px;padding:14px 16px;font-size:16px;
+         font-weight:650;background:#2457d6;color:white;cursor:pointer;margin-top:10px}
+  button:disabled{opacity:.6;cursor:wait}
+  #status{margin-top:14px;padding:12px;border-radius:12px;background:#f3f4f6;
+          overflow-wrap:anywhere;font-size:14px}
+  .small{font-size:12px;color:#6b7280}
+  a{color:#2457d6}
+</style>
+</head>
+<body>
+<main>
+  <div class="art" role="img" aria-label="Illustration of a peaceful landscape">
+    <svg viewBox="0 0 700 330" width="100%" height="100%" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <linearGradient id="sky" x2="0" y2="1"><stop stop-color="#8ec5ff"/><stop offset="1" stop-color="#e6f5ff"/></linearGradient>
+        <linearGradient id="hill" x2="0" y2="1"><stop stop-color="#62b78a"/><stop offset="1" stop-color="#23745e"/></linearGradient>
+      </defs>
+      <rect width="700" height="330" fill="url(#sky)"/>
+      <circle cx="535" cy="76" r="38" fill="#fff2b2"/>
+      <path d="M0 220 150 95l125 125 130-145 180 145 115-100v210H0Z" fill="#91b6c6"/>
+      <path d="M0 235 160 145l140 110 150-115 250 115v75H0Z" fill="url(#hill)"/>
+      <path d="M0 270q170-60 340 0t360 0v60H0Z" fill="#246b59"/>
+      <path d="M0 292q170-38 340 0t360 0" fill="none" stroke="#a7dfc0" stroke-width="5" opacity=".8"/>
+    </svg>
+  </div>
+  <h1>Share your location</h1>
+  <p>You can view the picture without sharing anything. If you choose <b>Share my location</b>, your browser will ask permission to share your device's location with the page owner.</p>
+  <button id="share">Share my location</button>
+  <div id="status" role="status" aria-live="polite">Your location has not been requested.</div>
+  <p class="small">Sharing is optional. If you choose Block or Deny, no location will be available. Your browser may show an approximate location.</p>
+</main>
+<script>
+/*
+  OPTIONAL: To send consented coordinates to your own server, put your HTTPS
+  endpoint URL below. Leave blank to show coordinates only on this device.
+  The endpoint must accept a JSON POST and be configured by you.
+*/
+const OWNER_ENDPOINT = "";
+
+const button = document.getElementById("share");
+const statusBox = document.getElementById("status");
+
+button.addEventListener("click", () => {
+  if (!("geolocation" in navigator)) {
+    statusBox.textContent = "This browser does not support location sharing.";
+    return;
+  }
+  button.disabled = true;
+  statusBox.textContent = "Waiting for your browser's location permission…";
+  navigator.geolocation.getCurrentPosition(async (pos) => {
+    const data = {
+      latitude: pos.coords.latitude,
+      longitude: pos.coords.longitude,
+      accuracy_meters: pos.coords.accuracy,
+      shared_at: new Date().toISOString()
+    };
+    const map = `https://www.openstreetmap.org/?mlat=${data.latitude}&mlon=${data.longitude}#map=16/${data.latitude}/${data.longitude}`;
+    statusBox.innerHTML = `Location shared on this page.<br>Accuracy: about ${Math.round(data.accuracy_meters)} metres.<br><a target="_blank" rel="noopener" href="${map}">View location on map</a>`;
+    if (OWNER_ENDPOINT.trim()) {
+      try {
+        const response = await fetch(OWNER_ENDPOINT, {
+          method: "POST",
+          headers: {"Content-Type":"application/json"},
+          body: JSON.stringify(data)
+        });
+        if (!response.ok) throw new Error("Server returned " + response.status);
+        statusBox.innerHTML += "<br>Location sent to the page owner's configured server.";
+      } catch (e) {
+        statusBox.innerHTML += "<br>Could not send to the owner's server. The location is shown only here.";
+      }
+    } else {
+      statusBox.innerHTML += "<br><span class='small'>Demo mode: this page does not send your location to anyone. A secure server endpoint must be configured by the site owner for remote delivery.</span>";
+    }
+    button.disabled = false;
+  }, (err) => {
+    const messages = {
+      1: "Permission was denied. No location was shared.",
+      2: "Your location is currently unavailable.",
+      3: "The location request timed out."
+    };
+    statusBox.textContent = messages[err.code] || "Could not get location.";
+    button.disabled = false;
+  }, {enableHighAccuracy:true, timeout:15000, maximumAge:0});
+});
+</script>
+</body>
+</html>
